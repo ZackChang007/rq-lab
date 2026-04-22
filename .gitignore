@@ -1,0 +1,18 @@
+# 环境配置
+.env
+.venv
+
+# 敏感凭证 - 绝不提交
+config/credentials.py
+
+# IDE
+.idea/
+.vscode/
+*.pyc
+__pycache__/
+
+# 数据缓存
+.rqalpha-plus/
+
+# Playwright
+.playwright-mcp/
