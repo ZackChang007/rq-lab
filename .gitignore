@@ -16,3 +16,6 @@ __pycache__/
 
 # Playwright
 .playwright-mcp/
+
+# Claude Code 本地配置（含权限设置，因人而异）
+.claude/settings.local.json
