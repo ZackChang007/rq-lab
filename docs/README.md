@@ -69,15 +69,11 @@
 ### 1. 安装 RQSDK
 
 ```bash
-# 推荐使用 Anaconda 创建虚拟环境
-conda create -n rqsdk python=3.9
-conda activate rqsdk
+# 激活项目环境（已配置 Python 3.12 + Poetry）
+conda activate rq-lab
 
-# 配置国内镜像
-pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-
-# 安装 RQSDK
-pip install rqsdk
+# 安装依赖（如需重新安装）
+poetry install
 ```
 
 ### 2. 配置许可证
