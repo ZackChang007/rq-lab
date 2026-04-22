@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | RQFactor | 因子定义与检验工具 |
 | RQAlpha Plus | 策略回测框架 |
 | RQOptimizer | 股票组合优化器 |
+| RQPAttr | 业绩归因分析（Brinson行业归因、因子归因） |
 
 **授权类型**: 个人试用 | **有效期**: 2026-05-22
 
@@ -28,7 +29,8 @@ rq-lab/
 │   ├── rqdata/          # RQData API 文档
 │   ├── rqfactor/        # RQFactor 文档
 │   ├── rqalpha-plus/    # RQAlpha Plus 文档
-│   └── rqoptimizer/     # RQOptimizer 文档
+│   ├── rqoptimizer/     # RQOptimizer 文档
+│   └── rqpattr/         # RQPAttr 归因分析文档
 └── examples/            # 示例代码
 ```
 
@@ -91,6 +93,7 @@ rqdatac.get_financials('000001.XSHE', start_quarter='2023q1', end_quarter='2023q
 - RQFactor: `docs/rqfactor/RQFACTOR_DOCS.md`, `RQFACTOR_ADVANCED.md`
 - RQAlpha Plus: `docs/rqalpha-plus/RQALPHA_PLUS_DOCS.md`, `RQALPHA_PLUS_API_REFERENCE.md`
 - RQOptimizer: `docs/rqoptimizer/RQOPTIMIZER_DOCS.md`, `RQOPTIMIZER_API.md`
+- RQPAttr: `docs/rqpattr/RQPATTR_DOCS.md`
 
 ## 凭证管理
 

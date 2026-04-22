@@ -18,6 +18,7 @@
 | RQFactor | 因子投研工具 | [docs/rqfactor/](./rqfactor/RQFACTOR_DOCS.md) |
 | RQAlpha Plus | 回测框架 | [docs/rqalpha-plus/](./rqalpha-plus/RQALPHA_PLUS_DOCS.md) |
 | RQOptimizer | 股票组合优化器 | [docs/rqoptimizer/](./rqoptimizer/RQOPTIMIZER_DOCS.md) |
+| RQPAttr | 业绩归因分析 | [docs/rqpattr/](./rqpattr/RQPATTR_DOCS.md) |
 
 ---
 
@@ -40,6 +41,9 @@
 ### RQOptimizer
 - `RQOPTIMIZER_DOCS.md` - 产品概览、功能列表、使用场景
 - `RQOPTIMIZER_API.md` - 选股 API、组合优化 API 详细参考
+
+### RQPAttr
+- `RQPATTR_DOCS.md` - 归因分析 API、Brinson 行业归因、因子归因模型详解、代码示例
 
 ---
 
@@ -187,5 +191,6 @@ print(result['sys_analyser']['summary'])
 | RQFactor | ✅ 完成 | 2 |
 | RQAlpha Plus | ✅ 完成 | 2 |
 | RQOptimizer | ✅ 完成 | 2 |
+| RQPAttr | ✅ 完成 | 1 |
 
 **文档整理日期**: 2024-04-22
