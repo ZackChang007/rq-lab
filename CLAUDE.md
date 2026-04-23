@@ -60,3 +60,27 @@ rqalpha-plus run -f <strategy.py> -s 2023-01-01 -e 2023-12-31 --plot --account s
 | RQAlpha Plus | `docs/rqalpha-plus/RQALPHA_PLUS_DOCS.md`, `RQALPHA_PLUS_API_REFERENCE.md` |
 | RQOptimizer | `docs/rqoptimizer/RQOPTIMIZER_DOCS.md`, `RQOPTIMIZER_API.md` |
 | RQPAttr | `docs/rqpattr/RQPATTR_DOCS.md` |
+
+## 文档查阅规则
+
+当涉及 Ricequant SDK 相关开发时，遵循以下规则：
+
+1. **优先查阅本地文档**：`docs/` 目录已收录完整文档，避免在线搜索
+2. **使用文档索引定位**：`.claude/commands/ricequant-doc-index.md` 包含完整的 API 文档链接索引
+3. **无法 Fetch 时使用 curl**：如需查阅在线文档，使用 curl 命令获取
+4. **可在终端验证 API**：如需确认 API 用法，可直接运行 Python 命令验证：
+   ```bash
+   conda activate rq-lab
+   python -c "import rqdatac; rqdatac.init(); print(rqdatac.all_instruments())"
+   python -c "import rqdatac; rqdatac.init(); help(rqdatac.get_trading_dates)"
+   ```
+
+## 数据获取约定
+
+当提到金融相关问题，需要获取金融数据时务必使用 RQData：
+- 股票行情：`rqdatac.get_price()`
+- 财务数据：`rqdatac.get_financials()`
+- 交易日历：`rqdatac.get_trading_dates()`
+- 合约信息：`rqdatac.all_instruments()`
+
+具体 API 用法查阅 `.claude/commands/ricequant-doc-index.md` 中对应模块的文档链接。
