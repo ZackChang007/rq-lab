@@ -84,3 +84,45 @@ rqalpha-plus run -f <strategy.py> -s 2023-01-01 -e 2023-12-31 --plot --account s
 - 合约信息：`rqdatac.all_instruments()`
 
 具体 API 用法查阅 `.claude/commands/ricequant-doc-index.md` 中对应模块的文档链接。
+
+## 项目模块
+
+### rq_lab 包
+
+可安装的 Python 包，提供量化研究工具：
+
+```python
+from rq_lab.backtest import run_backtest
+```
+
+#### 回测模块 (`rq_lab/backtest.py`)
+
+封装 RQAlpha Plus 回测引擎，关键特性：
+- `auto_update_bundle=False`：禁用自动更新，避免消耗付费配额
+- `rqdatac_uri="disabled"`：仅使用本地 Bundle 数据
+- 禁用期权/可转债/基金/期货/现货模块（避免 API 调用）
+- 自动从 `config/credentials.py` 读取许可证
+
+```python
+result = run_backtest(
+    init=init, handle_bar=handle_bar,
+    start_date="2020-01-01", end_date="2020-12-31",
+    capital=100000, benchmark="000300.XSHG",
+)
+summary = result["sys_analyser"]["summary"]
+```
+
+样例：`python examples/buy_and_hold.py`
+
+### 数据下载 (`scripts/data/download.py`)
+
+RQData 全量数据下载工具，输出到 `data/` (Parquet)。详见 `data/DOWNLOAD_PROGRESS.md`。
+
+### 数据路径策略
+
+| 数据源 | 存储 | 格式 | 用途 | 计费 |
+|--------|------|------|------|------|
+| RQSDK Bundle | `~/.rqalpha-plus/bundle/` | HDF5 | 回测行情数据 | `--sample` 免费 |
+| 自定义下载 | `data/` | Parquet | 财务、因子等补充数据 | API 计费 |
+
+**原则**：尽量使用官方默认设置和规则。`--sample` 数据不消耗配额，优先使用。
