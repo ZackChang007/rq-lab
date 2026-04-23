@@ -3,7 +3,7 @@ RQData 全量数据下载工具
 
 用法:
     export RQDATAC2_CONF='tcp://license:...@rqdatad-pro.ricequant.com:16011'
-    python scripts/download.py [step]
+    python scripts/data/download.py [step]
 
     step: metadata | stock_price | stock_finance | stock_factor | stock_events |
           index | futures | options | convertible | fund | risk_factor |
@@ -23,7 +23,7 @@ import pandas as pd
 import rqdatac
 
 # ── 配置 ──────────────────────────────────────────────────────────────────
-DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
+DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
 LOG_PATH = DATA_ROOT / "download_log.json"
 DAILY_QUOTA_MB = 1024
 QUOTA_MARGIN_MB = 100  # 保留余量
