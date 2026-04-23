@@ -14,6 +14,10 @@ __pycache__/
 # 数据缓存
 .rqalpha-plus/
 
+# 下载的数据文件（太大不入库）
+data/
+!data/DOWNLOAD_PROGRESS.md
+
 # Playwright
 .playwright-mcp/
 
