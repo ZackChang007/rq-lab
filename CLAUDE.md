@@ -19,14 +19,53 @@ RQSDK (工具套件总入口，许可证管理)
 
 关键：`rqsdk install rqalpha_plus` 会自动安装 RQData、RQOptimizer、RQFactor。
 
+---
+
+## ⚠️ 设计原则（最高优先级）
+
+> **此规则优先级高于所有其他开发指南，必须在任何实现决策前首先遵循。**
+
+### 设计三原则
+
+实现功能模块时，严格遵循以下原则：
+
+1. **官方优先**：一切以官方文档的最佳实践为最高参考优先级
+2. **模块协同**：接口清晰、职责单一，追求低耦合高内聚——当前模块应具备良好的"可对接性"
+3. **拒绝预判**：不为未实现的模块设计具体对接方案——等对方确定后再适配，避免无效设计
+
+### 官方文档优先级
+
+```
+实现功能时，必须按此顺序决策：
+
+┌─────────────────────────────────────────────────────────┐
+│  1. 查阅官方文档是否有推荐实现方式 → 有则严格遵循       │
+│  2. 官方文档有示例代码 → 直接参考/复用                 │
+│  3. 官方文档未明确说明 → 按最简单直接的方式实现         │
+│  4. 禁止自行设计"更好的"方案替代官方推荐               │
+└─────────────────────────────────────────────────────────┘
+```
+
+**为什么这条规则存在**：
+- 官方方案经过生产验证，自行设计易引入边界条件问题
+- 过度设计增加维护负担，违背 YAGNI 原则
+- 本项目依赖 RiceQuant SDK，遵循其设计哲学可避免兼容性问题
+
+---
+
 ## 环境配置
 
 **Python**: 3.12.13 | **环境名**: `rq-lab` | **包管理**: Poetry
 
 ```bash
 conda activate rq-lab
-poetry install          # 安装依赖（使用清华 PyPI 镜像源，见 pyproject.toml）
+poetry install          # 安装依赖 + utils 包（可编辑模式）
 poetry add <package>    # 添加新依赖
+```
+
+安装后 `utils` 包可直接导入：
+```python
+from utils.common import setup_license, QUOTA_SAFE_CONFIG
 ```
 
 首次使用需配置凭证：
@@ -87,32 +126,45 @@ rqalpha-plus run -f <strategy.py> -s 2023-01-01 -e 2023-12-31 --plot --account s
 
 ## 项目模块
 
-### rq_lab 包
+### utils 包
 
-可安装的 Python 包，提供量化研究工具：
-
-```python
-from rq_lab.backtest import run_backtest
-```
-
-#### 回测模块 (`rq_lab/backtest.py`)
-
-封装 RQAlpha Plus 回测引擎，关键特性：
-- `auto_update_bundle=False`：禁用自动更新，避免消耗付费配额
-- `rqdatac_uri="disabled"`：仅使用本地 Bundle 数据
-- 禁用期权/可转债/基金/期货/现货模块（避免 API 调用）
-- 自动从 `config/credentials.py` 读取许可证
+共享工具模块，提供许可证初始化和配额保护默认配置：
 
 ```python
-result = run_backtest(
-    init=init, handle_bar=handle_bar,
-    start_date="2020-01-01", end_date="2020-12-31",
-    capital=100000, benchmark="000300.XSHG",
-)
-summary = result["sys_analyser"]["summary"]
+from utils.common import setup_license, QUOTA_SAFE_CONFIG
 ```
 
-样例：`python examples/buy_and_hold.py`
+- `setup_license()`：从 `config/credentials.py` 读取密钥，设置 `RQDATAC2_CONF` 环境变量
+- `QUOTA_SAFE_CONFIG`：试用账号配额保护默认配置（禁用自动更新、禁用非股票品种模块）
+
+### 回测脚本 (`scripts/backtest/`)
+
+策略脚本目录，遵循 RQSDK 官方模板。详见 [docs/backtest.md](docs/backtest.md)。
+
+| 脚本 | 说明 |
+|------|------|
+| `scripts/backtest/buy_and_hold.py` | 买入持有策略 |
+
+运行方式：
+```bash
+# 官方 CLI 方式
+rqalpha-plus run -f scripts/backtest/buy_and_hold.py -s 2020-01-01 -e 2020-12-31 --account stock 100000 --plot
+# Python 直接运行
+python scripts/backtest/buy_and_hold.py
+```
+
+### 全链条示例 (`examples/`)
+
+| 阶段 | 模块 | 脚本 | 说明 |
+|------|------|------|------|
+| 因子研究 | RQFactor | `examples/factor_research.py` | 因子定义→计算→检验 |
+| 组合优化 | RQOptimizer | `examples/portfolio_optimization.py` | 指标最大化/跟踪误差/风险平价 |
+| 业绩归因 | RQPAttr | `examples/performance_attribution.py` | Brinson归因+因子归因 |
+| 全流程集成 | 全部 | `examples/full_pipeline.py` | 因子→优化→回测→归因 |
+
+全链条流程：`数据准备 → 因子定义/检验 → 组合优化 → 策略回测 → 业绩归因`
+
+详细计划：`.planning/RICEQUANT_FULL_PIPELINE.md`
 
 ### 数据下载 (`scripts/data/download.py`)
 
@@ -126,3 +178,13 @@ RQData 全量数据下载工具，输出到 `data/` (Parquet)。详见 `data/DOW
 | 自定义下载 | `data/` | Parquet | 财务、因子等补充数据 | API 计费 |
 
 **原则**：尽量使用官方默认设置和规则。`--sample` 数据不消耗配额，优先使用。
+
+## 测试
+
+```bash
+pytest tests/ -v              # 运行全部测试
+pytest tests/test_xxx.py -v   # 运行单个测试文件
+pytest tests/ -k "test_name"  # 按名称筛选
+```
+
+目前测试目录待建立，新增模块时必须同步添加单元测试。

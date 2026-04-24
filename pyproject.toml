@@ -5,13 +5,13 @@ description = "米筐量化工具套件研究项目"
 authors = [
     {name = "Zack Chang",email = "zhangchunyucoldfish@126.com"}
 ]
-requires-python = "^3.12"
+requires-python = ">=3.12"
 dependencies = [
     "rqsdk (>=1.7.1,<2.0.0)"
 ]
 
-
-packages = [{include = "rq_lab"}]
+[tool.poetry]
+packages = [{include = "utils"}]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -21,4 +21,3 @@ build-backend = "poetry.core.masonry.api"
 name = "tsinghua"
 url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
 priority = "primary"
-
