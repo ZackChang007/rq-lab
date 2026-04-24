@@ -2,7 +2,6 @@
 RQData 全量数据下载工具
 
 用法:
-    export RQDATAC2_CONF='tcp://license:...@rqdatad-pro.ricequant.com:16011'
     python scripts/data/download.py [step]
 
     step: metadata | stock_price | stock_finance | stock_factor | stock_events |
@@ -21,6 +20,9 @@ from pathlib import Path
 
 import pandas as pd
 import rqdatac
+from utils.common import setup_license
+
+setup_license()
 
 # ── 配置 ──────────────────────────────────────────────────────────────────
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
