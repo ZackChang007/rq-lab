@@ -153,14 +153,15 @@ rqalpha-plus run -f scripts/backtest/buy_and_hold.py -s 2020-01-01 -e 2020-12-31
 python scripts/backtest/buy_and_hold.py
 ```
 
-### 全链条示例 (`examples/`)
+### 全链条脚本 (`scripts/`)
 
 | 阶段 | 模块 | 脚本 | 说明 |
 |------|------|------|------|
-| 因子研究 | RQFactor | `examples/factor_research.py` | 因子定义→计算→检验 |
-| 组合优化 | RQOptimizer | `examples/portfolio_optimization.py` | 指标最大化/跟踪误差/风险平价 |
-| 业绩归因 | RQPAttr | `examples/performance_attribution.py` | Brinson归因+因子归因 |
-| 全流程集成 | 全部 | `examples/full_pipeline.py` | 因子→优化→回测→归因 |
+| 回测 | RQAlpha Plus | `scripts/backtest/buy_and_hold.py` | 买入持有策略 |
+| 因子研究 | RQFactor | `scripts/factor/factor_research.py` | 因子定义→计算→检验 |
+| 组合优化 | RQOptimizer | `scripts/portfolio/portfolio_optimization.py` | 指标最大化/跟踪误差/风险平价 |
+| 业绩归因 | RQPAttr | `scripts/attribution/performance_attribution.py` | Brinson归因+因子归因 |
+| 全流程集成 | 全部 | `scripts/full_pipeline.py` | 因子→优化→回测→归因 |
 
 全链条流程：`数据准备 → 因子定义/检验 → 组合优化 → 策略回测 → 业绩归因`
 
