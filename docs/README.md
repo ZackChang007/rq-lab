@@ -13,6 +13,7 @@
 
 | 组件 | 用途 | 文档链接 |
 |------|------|----------|
+| **开源替代** | 授权结束后可用 | [docs/open-source/](./open-source/RQALPHA_OPEN_SOURCE_GUIDE.md) |
 | RiceQuant 平台 | Web 量化平台操作指南 | [docs/ricequant-platform/](./ricequant-platform/RICEQUANT_PLATFORM_GUIDE.md) |
 | RQSDK | 工具套件总入口 | [docs/rqsdk/](./rqsdk/RQSDK_MANUAL.md) |
 | RQData | 金融数据 API | [docs/rqdata/](./rqdata/RQDATA_DOCS.md) |
@@ -24,6 +25,9 @@
 ---
 
 ## 文档文件清单
+
+### 开源替代方案
+- `RQALPHA_OPEN_SOURCE_GUIDE.md` - RQAlpha 开源版使用指南：授权结束后替代方案
 
 ### RiceQuant 平台
 - `RICEQUANT_PLATFORM_GUIDE.md` - Web 平台操作指南：投资研究、因子研究、回测、模拟交易、策略API
@@ -190,6 +194,7 @@ print(result['sys_analyser']['summary'])
 
 | 组件 | 状态 | 文件数 |
 |------|------|--------|
+| 开源替代 | ✅ 完成 | 1 |
 | RiceQuant 平台 | ✅ 完成 | 1 |
 | RQSDK | ✅ 完成 | 1 |
 | RQData | ✅ 完成 | 1 |
