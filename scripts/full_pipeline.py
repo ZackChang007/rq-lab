@@ -17,6 +17,7 @@
 """
 import copy
 
+import pandas as pd
 import rqdatac
 from rqalpha.api import order_target_portfolio
 from rqalpha_plus import run_func
@@ -59,21 +60,26 @@ def phase1_factor_research(stock_ids, start_date, end_date):
     price = rqdatac.get_price(
         stock_ids, start_date, end_date, frequency="1d", fields="close", adjust_type="pre", expect_df=True
     )
-    returns = price.groupby(level="order_book_id").pct_change()
+    returns = price.groupby(level="order_book_id").pct_change().unstack(level="order_book_id")
+    if isinstance(returns.columns, pd.MultiIndex):
+        returns.columns = returns.columns.droplevel(0)
 
     # 因子检验
     print("运行因子检验...")
     engine = FactorAnalysisEngine()
     engine.append(("winzorization", Winzorization(method="mad")))
-    engine.append(("ic_analysis", ICAnalysis(rank_ic=True, industry_classification="sws")))
+    engine.append(("ic_analysis", ICAnalysis(rank_ic=True)))
 
     result = engine.analysis(factor_data, returns, ascending=True, periods=1)
 
     # 打印 IC 摘要
     ic_result = result.get("ic_analysis")
     if ic_result is not None:
-        ic_mean = ic_result.ic.mean()
-        ic_std = ic_result.ic.std()
+        ic_vals = ic_result.ic
+        if isinstance(ic_vals, pd.DataFrame):
+            ic_vals = ic_vals.iloc[:, 0]
+        ic_mean = float(ic_vals.mean())
+        ic_std = float(ic_vals.std())
         ir = ic_mean / ic_std if ic_std != 0 else 0
         print(f"\nIC 均值: {ic_mean:.4f}")
         print(f"IC 标准差: {ic_std:.4f}")
@@ -98,15 +104,14 @@ def phase2_portfolio_optimization(scores, date, benchmark="000300.XSHG"):
 
     from rqoptimizer import (
         CovModel,
-        IndustryConstraint,
         MaxIndicator,
-        StyleConstraint,
+        WildcardIndustryConstraint,
         portfolio_optimize,
     )
 
     print(f"优化目标: 最大化因子得分")
     print(f"基准: {benchmark}")
-    print(f"约束: 行业中性 + 风格中性")
+    print(f"约束: 个股权重0-5%, 行业偏离±3%")
 
     # 执行优化
     weights = portfolio_optimize(
@@ -116,8 +121,9 @@ def phase2_portfolio_optimization(scores, date, benchmark="000300.XSHG"):
         benchmark=benchmark,
         bnds={"weight": (0, 0.05)},  # 单只股票最大 5%
         cons=[
-            IndustryConstraint(neutral=True),
-            StyleConstraint(neutral=True),
+            WildcardIndustryConstraint(
+                lower_limit=-0.03, upper_limit=0.03, relative=True
+            ),
         ],
         cov_model=CovModel.FACTOR_MODEL_DAILY,
     )
@@ -254,12 +260,12 @@ def main():
     print("=" * 60)
     print("因子研究 → 组合优化 → 策略回测 → 业绩归因")
 
-    # 参数设置
-    factor_start = "2022-01-01"
-    factor_end = "2022-12-31"
-    backtest_start = "2023-01-01"
-    backtest_end = "2023-12-31"
-    optimize_date = "2022-12-30"  # 优化日期（因子计算结束日）
+    # 参数设置（适配 Bundle 数据范围：截至 2020-04-28）
+    factor_start = "2019-01-01"
+    factor_end = "2019-12-31"
+    backtest_start = "2020-01-01"
+    backtest_end = "2020-04-28"
+    optimize_date = "2019-12-30"  # 优化日期（因子计算结束日）
     index_id = "000300.XSHG"
 
     # 获取股票池
