@@ -28,6 +28,7 @@
 
 ### 开源替代方案
 - `RQALPHA_OPEN_SOURCE_GUIDE.md` - RQAlpha 开源版使用指南：授权结束后替代方案
+- `FACTOR_ANALYZER_COMPARISON.md` - 因子分析库选型：jqfactor_analyzer vs Alphalens
 
 ### RiceQuant 平台
 - `RICEQUANT_PLATFORM_GUIDE.md` - Web 平台操作指南：投资研究、因子研究、回测、模拟交易、策略API
