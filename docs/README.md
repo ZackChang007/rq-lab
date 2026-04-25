@@ -13,6 +13,7 @@
 
 | 组件 | 用途 | 文档链接 |
 |------|------|----------|
+| RiceQuant 平台 | Web 量化平台操作指南 | [docs/ricequant-platform/](./ricequant-platform/RICEQUANT_PLATFORM_GUIDE.md) |
 | RQSDK | 工具套件总入口 | [docs/rqsdk/](./rqsdk/RQSDK_MANUAL.md) |
 | RQData | 金融数据 API | [docs/rqdata/](./rqdata/RQDATA_DOCS.md) |
 | RQFactor | 因子投研工具 | [docs/rqfactor/](./rqfactor/RQFACTOR_DOCS.md) |
@@ -23,6 +24,9 @@
 ---
 
 ## 文档文件清单
+
+### RiceQuant 平台
+- `RICEQUANT_PLATFORM_GUIDE.md` - Web 平台操作指南：投资研究、因子研究、回测、模拟交易、策略API
 
 ### RQSDK
 - `RQSDK_MANUAL.md` - 安装、配置、组件管理指南
@@ -186,6 +190,7 @@ print(result['sys_analyser']['summary'])
 
 | 组件 | 状态 | 文件数 |
 |------|------|--------|
+| RiceQuant 平台 | ✅ 完成 | 1 |
 | RQSDK | ✅ 完成 | 1 |
 | RQData | ✅ 完成 | 1 |
 | RQFactor | ✅ 完成 | 2 |
@@ -193,4 +198,4 @@ print(result['sys_analyser']['summary'])
 | RQOptimizer | ✅ 完成 | 2 |
 | RQPAttr | ✅ 完成 | 1 |
 
-**文档整理日期**: 2024-04-22
+**文档整理日期**: 2026-04-25
