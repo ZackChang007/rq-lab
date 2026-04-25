@@ -132,12 +132,18 @@
 
 | 字段代码 | 聚宽 | 米筐 | 字段说明 |
 |----------|------|------|----------|
-| `net_operate_cash_flow_to_total_liability` | ✅ | - | 经营现金流/负债合计 |
-| `net_operate_cash_flow_coverage` | ✅ | - | 净利润现金含量 |
+| `net_operate_cash_flow_to_total_liability` | ✅ | ✅ (`ocf_to_debt_ttm`) | 经营现金流/负债合计 |
+| `net_operate_cash_flow_coverage` | ✅ | ✅ (`surplus_cash_protection_multiples_ttm`) | 净利润现金含量（盈余现金保障倍数） |
 | `cash_rate_of_sales` | ✅ | ✅ | 经营现金流/营业收入 |
 | `net_operate_cash_flow_to_asset` | ✅ | - | 总资产现金回收率 |
 | `cash_to_current_liability` | ✅ | - | 现金比率 |
 | `ACCA` | ✅ | - | 现金流资产比与资产回报率之差 |
+| `operating_cash_flow_per_share` | - | ✅ (`operating_cash_flow_per_share_ttm`) | 每股经营现金流 |
+| `fcff` | - | ✅ (`fcff_ttm`) | 企业自由现金流量 |
+| `fcfe` | - | ✅ (`fcfe_ttm`) | 股权自由现金流量 |
+| `ocf_to_interest_bearing_debt` | - | ✅ (`ocf_to_interest_bearing_debt_ttm`) | 经营现金流/带息债务 |
+
+> **修正说明**：经核实，米筐的财务衍生指标覆盖了大部分聚宽的现金流因子，但命名体系不同。聚宽用直观命名，米筐用财务术语命名。
 
 ---
 
