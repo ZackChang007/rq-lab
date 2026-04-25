@@ -33,6 +33,7 @@
 ### 开源替代方案
 - `RQALPHA_OPEN_SOURCE_GUIDE.md` - RQAlpha 开源版使用指南：授权结束后替代方案
 - `FACTOR_ANALYZER_COMPARISON.md` - 因子分析库选型：jqfactor_analyzer vs Alphalens
+- `JOINQUANT_RICEQUANT_FACTOR_COMPARISON.md` - 聚宽与米筐因子研究资源对比：数据字段、算子、平台选择建议
 
 ### RiceQuant 平台
 - `RICEQUANT_PLATFORM_GUIDE.md` - Web 平台操作指南：投资研究、因子研究、回测、模拟交易、策略API
@@ -200,7 +201,7 @@ print(result['sys_analyser']['summary'])
 | 组件 | 状态 | 文件数 |
 |------|------|--------|
 | 聚宽参考 | ✅ 完成 | 1 |
-| 开源替代 | ✅ 完成 | 2 |
+| 开源替代 | ✅ 完成 | 3 |
 | RiceQuant 平台 | ✅ 完成 | 1 |
 | RQSDK | ✅ 完成 | 1 |
 | RQData | ✅ 完成 | 1 |
