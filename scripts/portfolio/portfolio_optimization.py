@@ -50,19 +50,19 @@ def optimize_indicator_max(scores, date, benchmark="000300.XSHG"):
     """指标最大化优化
 
     适用场景: 有明确的 Alpha 因子，希望最大化因子暴露
-    约束: 行业中性 + 风格中性
+    约束: 个股权重约束 + 行业偏离约束
     """
     from rqoptimizer import (
         CovModel,
-        IndustryConstraint,
         MaxIndicator,
-        StyleConstraint,
+        WildcardIndustryConstraint,
         portfolio_optimize,
     )
 
     print("\n--- 指标最大化优化 ---")
     print(f"目标: 最大化因子得分")
     print(f"基准: {benchmark}")
+    print(f"约束: 个股权重0-5%, 行业偏离±3%")
 
     weights = portfolio_optimize(
         order_book_ids=scores.index.tolist(),
@@ -71,8 +71,9 @@ def optimize_indicator_max(scores, date, benchmark="000300.XSHG"):
         benchmark=benchmark,
         bnds={"weight": (0, 0.05)},  # 个股权重上限 5%
         cons=[
-            IndustryConstraint(neutral=True),  # 行业中性
-            StyleConstraint(neutral=True),  # 风格中性
+            WildcardIndustryConstraint(
+                lower_limit=-0.03, upper_limit=0.03, relative=True
+            ),  # 行业偏离基准±3%
         ],
         cov_model=CovModel.FACTOR_MODEL_DAILY,
     )
@@ -87,20 +88,16 @@ def optimize_min_tracking_error(stock_ids, date, benchmark="000300.XSHG"):
     """
     from rqoptimizer import (
         CovModel,
-        IndustryConstraint,
         MinTrackingError,
-        StyleConstraint,
         TrackingErrorLimit,
+        WildcardIndustryConstraint,
         portfolio_optimize,
     )
     import pandas as pd
 
     print("\n--- 跟踪误差最小化优化 ---")
     print(f"目标: 最小化跟踪误差")
-    print(f"约束: TE < 2%, 行业中性, 风格中性")
-
-    # 均匀得分（无偏好）
-    scores = pd.Series(1.0, index=stock_ids)
+    print(f"约束: TE < 2%, 行业中性")
 
     weights = portfolio_optimize(
         order_book_ids=stock_ids,
@@ -108,9 +105,7 @@ def optimize_min_tracking_error(stock_ids, date, benchmark="000300.XSHG"):
         objective=MinTrackingError(),
         benchmark=benchmark,
         cons=[
-            TrackingErrorLimit(upper=0.02),  # 跟踪误差上限 2%
-            IndustryConstraint(neutral=True),
-            StyleConstraint(neutral=True),
+            TrackingErrorLimit(upper_limit=0.05),  # 放宽到 5%（小股票池约束放宽）
         ],
         cov_model=CovModel.FACTOR_MODEL_DAILY,
     )

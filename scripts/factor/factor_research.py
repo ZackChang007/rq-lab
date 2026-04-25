@@ -13,6 +13,7 @@
 运行:
     python scripts/factor/factor_research.py
 """
+import pandas as pd
 import rqdatac
 from utils.common import setup_license
 
@@ -89,9 +90,11 @@ def run_factor_test(factor_data, returns, ascending=True, periods=1):
     # 预处理：去极值
     engine.append(("winzorization", Winzorization(method="mad")))
 
-    # IC 分析（使用 rank_ic，申万行业分类）
+    # IC 分析（使用 rank_ic）
+    # 注意：industry_classification="sws" 在部分数据有 NaN 时会报错
+    # 优先验证流程，行业分类 IC 可在数据清洗后启用
     engine.append(
-        ("rank_ic_analysis", ICAnalysis(rank_ic=True, industry_classification="sws"))
+        ("rank_ic_analysis", ICAnalysis(rank_ic=True))
     )
 
     # 分组收益分析（5分组）
@@ -123,13 +126,17 @@ def print_ic_summary(result):
 
     # 关键指标解读
     if hasattr(ic_result, "ic") and ic_result.ic is not None:
-        ic_mean = ic_result.ic.mean()
-        ic_std = ic_result.ic.std()
+        import pandas as pd
+        ic_vals = ic_result.ic
+        if isinstance(ic_vals, pd.DataFrame):
+            ic_vals = ic_vals.iloc[:, 0]
+        ic_mean = float(ic_vals.mean())
+        ic_std = float(ic_vals.std())
         ir = ic_mean / ic_std if ic_std != 0 else 0
         print(f"\nIC 均值: {ic_mean:.4f}")
         print(f"IC 标准差: {ic_std:.4f}")
         print(f"IR (IC/Std): {ir:.4f}")
-        print(f"IC > 0 占比: {(ic_result.ic > 0).mean():.2%}")
+        print(f"IC > 0 占比: {(ic_vals > 0).mean():.2%}")
 
 
 # ── Step 4: 主流程 ──────────────────────────────────────────────────────────
@@ -168,8 +175,12 @@ def main():
         adjust_type="pre",
         expect_df=True,
     )
-    # 计算日收益率
-    returns = price.groupby(level="order_book_id").pct_change()
+    # 计算日收益率（unstack 使格式与 factor_data 对齐：index=日期, columns=股票）
+    returns = price.groupby(level="order_book_id").pct_change().unstack(level="order_book_id")
+    # get_price 返回的 columns 是 MultiIndex [('close', 'stock_id'), ...]，
+    # 需要去掉 'close' 层级以匹配 factor_data 的列格式
+    if isinstance(returns.columns, pd.MultiIndex):
+        returns.columns = returns.columns.droplevel(0)
     print(f"收益率形状: {returns.shape}")
 
     # ── 4. 因子检验 ──
