@@ -34,8 +34,124 @@ PYTHON = sys.executable
 # 启动时初始化连接
 rqdatac.init()
 
+# 流量追踪
+_session_used_mb = 0.0  # 本次会话已用流量
+_last_quota_check = 0.0  # 上次 API 查询的剩余流量
+_probe_verified = False  # 是否已完成预检验证
 
-# ── 日志系统 ──────────────────────────────────────────────────────────────
+
+# ── 流量控制 ──────────────────────────────────────────────────────────────
+def get_quota_info():
+    """获取配额信息"""
+    try:
+        quota = rqdatac.user.get_quota()
+        return {
+            "limit_mb": quota["bytes_limit"] / 1024 / 1024,
+            "used_mb": quota["bytes_used"] / 1024 / 1024,
+            "remaining_mb": (quota["bytes_limit"] - quota["bytes_used"]) / 1024 / 1024,
+        }
+    except Exception as e:
+        print(f"  [警告] 获取配额失败: {e}")
+        return {"limit_mb": 1024, "used_mb": 1024, "remaining_mb": 0}
+
+
+def verify_quota_with_probe():
+    """
+    通过实际小请求验证流量是否真的可用。
+    API 返回的配额可能有缓存延迟，需要实测确认。
+    返回: (可用?, 预检消耗MB, 错误信息)
+    """
+    global _probe_verified, _session_used_mb, _last_quota_check
+
+    if _probe_verified:
+        return True, 0, None
+
+    print("  [预检] 验证流量可用性...")
+    info = get_quota_info()
+    before_used = info["used_mb"]
+    _last_quota_check = info["remaining_mb"]
+
+    # 如果 API 显示已超限，直接返回
+    if info["remaining_mb"] <= 0:
+        return False, 0, f"API显示已超限 (剩余 {info['remaining_mb']:.1f} MB)"
+
+    # 用最小请求测试：获取今天一只股票的收盘价
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        df = rqdatac.get_price(
+            ["000001.XSHE"], today, today,
+            frequency="1d", fields=["close"], expect_df=True
+        )
+        # 再次获取配额，计算实际消耗
+        info_after = get_quota_info()
+        after_used = info_after["used_mb"]
+        probe_cost = after_used - before_used
+
+        print(f"  [预检] 完成，消耗 {probe_cost:.2f} MB，剩余 {info_after['remaining_mb']:.1f} MB")
+
+        _probe_verified = True
+        _session_used_mb += max(0, probe_cost)
+        _last_quota_check = info_after["remaining_mb"]
+
+        return True, probe_cost, None
+
+    except Exception as e:
+        err_msg = str(e)
+        if "Quota exceeded" in err_msg:
+            print(f"  [预检] 失败：流量已超限")
+            return False, 0, "Quota exceeded"
+        else:
+            print(f"  [预检] 异常：{err_msg}")
+            return False, 0, err_msg
+
+
+def check_quota(need_mb=50):
+    """
+    检查流量是否充足。
+    先做预检验证，再判断剩余量。
+    """
+    global _probe_verified, _last_quota_check
+
+    # 1. 首次检查时先验证
+    if not _probe_verified:
+        ok, cost, err = verify_quota_with_probe()
+        if not ok:
+            print(f"  [流量验证失败] {err}")
+            return False
+
+    # 2. 检查剩余量
+    info = get_quota_info()
+    rem = info["remaining_mb"]
+    _last_quota_check = rem
+
+    if rem < QUOTA_MARGIN_MB:
+        print(f"  [流量不足] 剩余 {rem:.1f} MB，低于安全余量 {QUOTA_MARGIN_MB} MB，停止下载")
+        return False
+    if rem < need_mb:
+        print(f"  [流量紧张] 剩余 {rem:.1f} MB，需要 {need_mb} MB，跳过")
+        return False
+
+    return True
+
+
+def track_usage(before_mb):
+    """追踪实际流量消耗"""
+    global _session_used_mb, _last_quota_check
+    info = get_quota_info()
+    actual = info["used_mb"] - before_mb
+    if actual > 0:
+        _session_used_mb += actual
+    _last_quota_check = info["remaining_mb"]
+    return actual
+
+
+def session_summary():
+    """打印本次会话流量使用摘要"""
+    info = get_quota_info()
+    print(f"\n=== 流量使用摘要 ===")
+    print(f"  本次会话消耗: {_session_used_mb:.1f} MB")
+    print(f"  当前剩余: {info['remaining_mb']:.1f} MB")
+    print(f"  已用/限额: {info['used_mb']:.1f} / {info['limit_mb']:.1f} MB")
 def load_log():
     if LOG_PATH.exists():
         return json.loads(LOG_PATH.read_text(encoding="utf-8"))
@@ -77,26 +193,9 @@ def mark_failed(key, err_msg):
     save_log(log)
 
 
-# ── 流量控制 ──────────────────────────────────────────────────────────────
-def remaining_quota_mb():
-    quota = rqdatac.user.get_quota()
-    return (quota["bytes_limit"] - quota["bytes_used"]) / 1024 / 1024
-
-
-def check_quota(need_mb=50):
-    rem = remaining_quota_mb()
-    if rem < QUOTA_MARGIN_MB:
-        print(f"  [流量不足] 剩余 {rem:.1f}MB，低于安全余量，停止下载")
-        return False
-    if rem < need_mb:
-        print(f"  [流量紧张] 剩余 {rem:.1f}MB，需要 {need_mb}MB，跳过")
-        return False
-    return True
-
-
 # ── 通用下载函数 ──────────────────────────────────────────────────────────
 def safe_download(key, func, path, need_mb=50, **to_parquet_kwargs):
-    """安全下载：断点续传 + 流量检查 + 错误重试"""
+    """安全下载：断点续传 + 流量检查 + 实际消耗追踪"""
     if is_done(key):
         print(f"  [跳过] {key} 已下载")
         return True
@@ -110,11 +209,19 @@ def safe_download(key, func, path, need_mb=50, **to_parquet_kwargs):
     last_error = None
     for attempt in range(3):
         try:
+            # 记录请求前的流量
+            info_before = get_quota_info()
+            before_mb = info_before["used_mb"]
+
             print(f"  [下载] {key} ...", end=" ", flush=True)
             df = func()
+
+            # 计算实际消耗
+            actual_used = track_usage(before_mb)
+
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
-                print("数据为空，标记完成")
-                mark_done(key, rows=0, bytes_est=0)
+                print(f"数据为空 (消耗 {actual_used:.2f} MB)")
+                mark_done(key, rows=0, bytes_est=int(actual_used * 1024 * 1024))
                 return True
             path = Path(path)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -126,11 +233,16 @@ def safe_download(key, func, path, need_mb=50, **to_parquet_kwargs):
                 path = path.with_suffix(".json")
                 path.write_text(json.dumps(df, ensure_ascii=False, default=str), encoding="utf-8")
                 rows = len(df) if hasattr(df, "__len__") else 1
-            print(f"完成 ({rows} 行)")
-            mark_done(key, rows=rows, bytes_est=need_mb * 1024 * 1024)
+            print(f"完成 ({rows} 行, 消耗 {actual_used:.2f} MB)")
+            mark_done(key, rows=rows, bytes_est=int(actual_used * 1024 * 1024))
             return True
         except Exception as e:
             last_error = e
+            err_msg = str(e)
+            if "Quota exceeded" in err_msg:
+                print(f"流量超限")
+                mark_failed(key, "Quota exceeded")
+                return False
             print(f"失败 (尝试 {attempt+1}/3): {e}")
             traceback.print_exc()
             time.sleep(5)
@@ -154,7 +266,7 @@ def download_metadata():
     # 交易日历
     safe_download(
         "calendar/trading_dates",
-        lambda: rqdatac.get_trading_dates("2005-01-01", "2026-12-31"),
+        lambda: rqdatac.get_trading_dates("2014-01-01", "2026-12-31"),
         DATA_ROOT / "calendar/trading_dates.parquet",
         need_mb=1,
     )
@@ -162,7 +274,7 @@ def download_metadata():
     # 收益率曲线
     safe_download(
         "yield_curve",
-        lambda: rqdatac.get_yield_curve("2002-01-01", "2026-12-31"),
+        lambda: rqdatac.get_yield_curve("2014-01-01", "2026-12-31"),
         DATA_ROOT / "yield_curve/yield_curve.parquet",
         need_mb=5,
     )
@@ -189,10 +301,9 @@ def download_stock_price():
 
     # 分批下载日线行情（按时间分段，减少单次请求量）
     date_ranges = [
-        ("2005-01-01", "2009-12-31"),
-        ("2010-01-01", "2014-12-31"),
-        ("2015-01-01", "2019-12-31"),
-        ("2020-01-01", "2026-12-31"),
+        ("2014-01-01", "2017-12-31"),
+        ("2018-01-01", "2021-12-31"),
+        ("2022-01-01", "2026-12-31"),
     ]
 
     all_frames = []
@@ -231,7 +342,7 @@ def download_stock_price():
     # 价格变化率
     safe_download(
         "stock/price_change_rate",
-        lambda: rqdatac.get_price_change_rate(stock_ids, "2005-01-01", "2026-12-31", expect_df=True),
+        lambda: rqdatac.get_price_change_rate(stock_ids, "2014-01-01", "2026-12-31", expect_df=True),
         DATA_ROOT / "stock/price_change_rate.parquet",
         need_mb=100,
     )
@@ -255,7 +366,7 @@ def download_stock_finance():
     all_fields = income_fields + balance_fields + cashflow_fields
 
     # 按年度分批下载 PIT 财务数据
-    for year in range(2005, 2027):
+    for year in range(2014, 2027):
         sq = f"{year}q1"
         eq = f"{year}q4"
         key = f"stock/pit_financials_{year}"
@@ -319,31 +430,46 @@ def download_stock_factor():
         )
         print(f"  因子总数: {len(all_factors)}")
 
-    # 批量下载因子（按批次，每次50个因子）
-    batch_size = 50
+    # 策略：单因子最近10年数据
     factor_list = all_factors if all_factors else []
-    for i in range(0, len(factor_list), batch_size):
-        batch = factor_list[i:i + batch_size]
-        key = f"factor/batch_{i//batch_size}"
+
+    for i, factor_name in enumerate(factor_list):
+        key = f"factor/{factor_name}"
         if is_done(key):
-            print(f"  [跳过] {key} 已下载")
+            print(f"  [跳过] {factor_name} 已下载")
             continue
-        if not check_quota(30):
-            break
+        if not check_quota(20):  # 单因子预估 10-20 MB
+            return
+
         try:
-            print(f"  [下载] 因子批次 {i//batch_size} ({len(batch)} 个因子) ...", end=" ", flush=True)
-            df = rqdatac.get_factor(stock_ids, batch, "2020-01-01", "2026-12-31", expect_df=True)
+            # 记录请求前的流量
+            info_before = get_quota_info()
+            before_mb = info_before["used_mb"]
+
+            print(f"  [下载] {i+1}/{len(factor_list)} {factor_name} ...", end=" ", flush=True)
+            df = rqdatac.get_factor(stock_ids, factor_name, "2016-01-01", "2026-12-31", expect_df=True)
+
+            # 计算实际消耗
+            actual_used = track_usage(before_mb)
+
             if df is not None and not df.empty:
-                out_path = DATA_ROOT / f"factor/batch_{i//batch_size}.parquet"
+                out_path = DATA_ROOT / f"factor/{factor_name}.parquet"
                 out_path.parent.mkdir(parents=True, exist_ok=True)
                 df.to_parquet(str(out_path), engine="pyarrow", compression="snappy")
-                print(f"完成 ({len(df)} 行)")
-                mark_done(key, rows=len(df), bytes_est=30 * 1024 * 1024)
+                rows = len(df)
+                print(f"完成 ({rows} 行, 消耗 {actual_used:.2f} MB)")
+                mark_done(key, rows=rows, bytes_est=int(actual_used * 1024 * 1024))
             else:
-                print("数据为空")
-                mark_done(key, rows=0, bytes_est=0)
+                print(f"数据为空 (消耗 {actual_used:.2f} MB)")
+                mark_done(key, rows=0, bytes_est=int(actual_used * 1024 * 1024))
         except Exception as e:
+            err_msg = str(e)
+            if "Quota exceeded" in err_msg:
+                print(f"流量超限")
+                mark_failed(key, "Quota exceeded")
+                return
             print(f"失败: {e}")
+            mark_failed(key, err_msg)
             mark_failed(key, str(e))
 
 
@@ -403,7 +529,7 @@ def download_index():
     # 指数日线行情
     safe_download(
         "index/price_1d",
-        lambda: rqdatac.get_price(all_index_ids, "2005-01-01", "2026-12-31", frequency="1d",
+        lambda: rqdatac.get_price(all_index_ids, "2014-01-01", "2026-12-31", frequency="1d",
                                   fields=["open", "close", "high", "low", "total_turnover", "volume"],
                                   adjust_type="none", expect_df=True),
         DATA_ROOT / "index/price_1d.parquet",
@@ -413,8 +539,8 @@ def download_index():
     # 成分股 + 权重（主要指数逐个下载）
     for idx_id in major_indices:
         for api_name, func in [
-            (f"index/components/{idx_id}", lambda i=idx_id: rqdatac.index_components(i, start_date="2010-01-01", end_date="2026-12-31")),
-            (f"index/weights/{idx_id}", lambda i=idx_id: rqdatac.index_weights(i, start_date="2010-01-01", end_date="2026-12-31")),
+            (f"index/components/{idx_id}", lambda i=idx_id: rqdatac.index_components(i, start_date="2014-01-01", end_date="2026-12-31")),
+            (f"index/weights/{idx_id}", lambda i=idx_id: rqdatac.index_weights(i, start_date="2014-01-01", end_date="2026-12-31")),
         ]:
             safe_download(api_name, func, DATA_ROOT / f"{api_name}.parquet", need_mb=20)
 
@@ -429,13 +555,13 @@ def download_futures():
                     'NR', 'SI', 'LC', 'BR', 'AO', 'EC']
 
     apis = [
-        ("futures/dominant", lambda: rqdatac.futures.get_dominant(future_types, "2010-01-01", "2026-12-31"), 20),
+        ("futures/dominant", lambda: rqdatac.futures.get_dominant(future_types, "2014-01-01", "2026-12-31"), 20),
         ("futures/contracts", lambda: rqdatac.futures.get_contracts(future_types[0]), 1),
-        ("futures/exchange_daily", lambda: rqdatac.futures.get_exchange_daily(future_types, "2010-01-01", "2026-12-31"), 50),
-        ("futures/member_rank", lambda: rqdatac.futures.get_member_rank(future_types[0], start_date="2020-01-01", end_date="2026-12-31"), 10),
-        ("futures/warehouse_stocks", lambda: rqdatac.futures.get_warehouse_stocks(future_types, "2010-01-01", "2026-12-31"), 10),
-        ("futures/basis", lambda: rqdatac.futures.get_basis(future_types, "2010-01-01", "2026-12-31"), 10),
-        ("futures/roll_yield", lambda: rqdatac.futures.get_roll_yield(future_types, "2010-01-01", "2026-12-31"), 10),
+        ("futures/exchange_daily", lambda: rqdatac.futures.get_exchange_daily(future_types, "2014-01-01", "2026-12-31"), 50),
+        ("futures/member_rank", lambda: rqdatac.futures.get_member_rank(future_types[0], start_date="2014-01-01", end_date="2026-12-31"), 10),
+        ("futures/warehouse_stocks", lambda: rqdatac.futures.get_warehouse_stocks(future_types, "2014-01-01", "2026-12-31"), 10),
+        ("futures/basis", lambda: rqdatac.futures.get_basis(future_types, "2014-01-01", "2026-12-31"), 10),
+        ("futures/roll_yield", lambda: rqdatac.futures.get_roll_yield(future_types, "2014-01-01", "2026-12-31"), 10),
     ]
 
     for key, func, need_mb in apis:
@@ -448,10 +574,10 @@ def download_options():
     underlying_symbols = ["510050.XSHG", "510300.XSHG", "159919.XSHE", "000300.XSHG"]
 
     apis = [
-        ("options/greeks", lambda: rqdatac.options.get_greeks("10003720.XSHG", "2020-01-01", "2026-12-31"), 30),
-        ("options/contract_property", lambda: rqdatac.options.get_contract_property("10003720.XSHG", "2020-01-01", "2026-12-31"), 5),
-        ("options/dominant_month", lambda: rqdatac.options.get_dominant_month(underlying_symbols, "2020-01-01", "2026-12-31"), 5),
-        ("options/indicators", lambda: rqdatac.options.get_indicators(underlying_symbols, "2020-01-01", "2020-12-31"), 10),
+        ("options/greeks", lambda: rqdatac.options.get_greeks("10003720.XSHG", "2014-01-01", "2026-12-31"), 30),
+        ("options/contract_property", lambda: rqdatac.options.get_contract_property("10003720.XSHG", "2014-01-01", "2026-12-31"), 5),
+        ("options/dominant_month", lambda: rqdatac.options.get_dominant_month(underlying_symbols, "2014-01-01", "2026-12-31"), 5),
+        ("options/indicators", lambda: rqdatac.options.get_indicators(underlying_symbols, "2014-01-01", "2026-12-31"), 10),
     ]
 
     for key, func, need_mb in apis:
@@ -479,16 +605,16 @@ def download_convertible():
 
     apis = [
         ("convertible/all_instruments", lambda: rqdatac.convertible.all_instruments(), 5),
-        ("convertible/conversion_price", lambda: rqdatac.convertible.get_conversion_price(cb_ids, "2015-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 10),
-        ("convertible/conversion_info", lambda: rqdatac.convertible.get_conversion_info(cb_ids, "2015-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 10),
-        ("convertible/call_info", lambda: rqdatac.convertible.get_call_info(cb_ids, "2015-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
-        ("convertible/put_info", lambda: rqdatac.convertible.get_put_info(cb_ids, "2015-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
-        ("convertible/cash_flow", lambda: rqdatac.convertible.get_cash_flow(cb_ids, "2015-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
-        ("convertible/indicators", lambda: rqdatac.convertible.get_indicators(cb_ids, "2018-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 20),
-        ("convertible/credit_rating", lambda: rqdatac.convertible.get_credit_rating(cb_ids, "2015-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
-        ("convertible/close_price", lambda: rqdatac.convertible.get_close_price(cb_ids, "2018-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 10),
-        ("convertible/std_discount", lambda: rqdatac.convertible.get_std_discount(cb_ids, "2015-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
-        ("convertible/call_announcement", lambda: rqdatac.convertible.get_call_announcement(cb_ids, "2015-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
+        ("convertible/conversion_price", lambda: rqdatac.convertible.get_conversion_price(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 10),
+        ("convertible/conversion_info", lambda: rqdatac.convertible.get_conversion_info(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 10),
+        ("convertible/call_info", lambda: rqdatac.convertible.get_call_info(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
+        ("convertible/put_info", lambda: rqdatac.convertible.get_put_info(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
+        ("convertible/cash_flow", lambda: rqdatac.convertible.get_cash_flow(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
+        ("convertible/indicators", lambda: rqdatac.convertible.get_indicators(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 20),
+        ("convertible/credit_rating", lambda: rqdatac.convertible.get_credit_rating(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
+        ("convertible/close_price", lambda: rqdatac.convertible.get_close_price(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 10),
+        ("convertible/std_discount", lambda: rqdatac.convertible.get_std_discount(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
+        ("convertible/call_announcement", lambda: rqdatac.convertible.get_call_announcement(cb_ids, "2014-01-01", "2026-12-31") if cb_ids else pd.DataFrame(), 5),
     ]
 
     for key, func, need_mb in apis:
@@ -504,12 +630,12 @@ def download_fund():
 
     apis = [
         ("fund/all_instruments", lambda: rqdatac.fund.all_instruments(), 5),
-        ("fund/nav", lambda: rqdatac.fund.get_nav(fund_ids[:500], "2010-01-01", "2026-12-31") if fund_ids else pd.DataFrame(), 30),
+        ("fund/nav", lambda: rqdatac.fund.get_nav(fund_ids[:500], "2014-01-01", "2026-12-31") if fund_ids else pd.DataFrame(), 30),
         ("fund/dividend", lambda: rqdatac.fund.get_dividend(fund_ids), 5),
         ("fund/split", lambda: rqdatac.fund.get_split(fund_ids), 2),
         ("fund/fee", lambda: rqdatac.fund.get_fee(fund_ids[:100]), 5),
         ("fund/ratings", lambda: rqdatac.fund.get_ratings(fund_ids[:200]), 5),
-        ("fund/holder_structure", lambda: rqdatac.fund.get_holder_structure(fund_ids[:200], "2020-01-01", "2026-12-31") if fund_ids else pd.DataFrame(), 10),
+        ("fund/holder_structure", lambda: rqdatac.fund.get_holder_structure(fund_ids[:200], "2014-01-01", "2026-12-31") if fund_ids else pd.DataFrame(), 10),
         ("fund/units_change", lambda: rqdatac.fund.get_units_change(fund_ids[:200]) if fund_ids else pd.DataFrame(), 5),
         ("fund/benchmark", lambda: rqdatac.fund.get_benchmark(fund_ids), 5),
         ("fund/instrument_category", lambda: rqdatac.fund.get_instrument_category(fund_ids[:200]), 5),
@@ -522,7 +648,7 @@ def download_fund():
         safe_download(key, func, DATA_ROOT / f"{key}.parquet", need_mb=need_mb)
 
     # 基金持仓/资产配置/行业配置按季度下载
-    for year in range(2015, 2027):
+    for year in range(2014, 2027):
         for q in ["0331", "0630", "0930", "1231"]:
             date_str = f"{year}{q}"
             for api_short, api_func in [
@@ -542,24 +668,24 @@ def download_risk_factor():
 
     apis = [
         ("risk_factor/factor_exposure_v1",
-         lambda: rqdatac.get_factor_exposure(stock_ids, "2020-01-01", "2026-12-31", model="v1"), 30),
+         lambda: rqdatac.get_factor_exposure(stock_ids, "2014-01-01", "2026-12-31", model="v1"), 30),
         ("risk_factor/factor_exposure_v2",
-         lambda: rqdatac.get_factor_exposure(stock_ids, "2020-01-01", "2026-12-31", model="v2"), 30),
+         lambda: rqdatac.get_factor_exposure(stock_ids, "2014-01-01", "2026-12-31", model="v2"), 30),
         ("risk_factor/stock_beta",
-         lambda: rqdatac.get_stock_beta(stock_ids, "2020-01-01", "2026-12-31"), 20),
+         lambda: rqdatac.get_stock_beta(stock_ids, "2014-01-01", "2026-12-31"), 20),
         ("risk_factor/factor_return",
-         lambda: rqdatac.get_factor_return("2020-01-01", "2026-12-31"), 10),
+         lambda: rqdatac.get_factor_return("2014-01-01", "2026-12-31"), 10),
         ("risk_factor/specific_return",
-         lambda: rqdatac.get_specific_return(stock_ids, "2020-01-01", "2026-12-31"), 20),
+         lambda: rqdatac.get_specific_return(stock_ids, "2014-01-01", "2026-12-31"), 20),
         ("risk_factor/specific_risk",
-         lambda: rqdatac.get_specific_risk(stock_ids, "2020-01-01", "2026-12-31"), 20),
+         lambda: rqdatac.get_specific_risk(stock_ids, "2014-01-01", "2026-12-31"), 20),
     ]
 
     for key, func, need_mb in apis:
         safe_download(key, func, DATA_ROOT / f"{key}.parquet", need_mb=need_mb)
 
     # 因子协方差按月下载
-    for year in range(2020, 2027):
+    for year in range(2014, 2027):
         for month in range(1, 13):
             date_str = f"{year}-{month:02d}-01"
             key = f"risk_factor/factor_covariance_{date_str}"
@@ -579,29 +705,29 @@ def download_macro_alt_spot():
 
     # 宏观
     apis = [
-        ("macro/reserve_ratio", lambda: rqdatac.econ.get_reserve_ratio(start_date="2005-01-01", end_date="2026-12-31"), 2),
-        ("macro/money_supply", lambda: rqdatac.econ.get_money_supply(start_date="2005-01-01", end_date="2026-12-31"), 2),
-        ("macro/interbank_offered_rate", lambda: rqdatac.get_interbank_offered_rate(start_date="2005-01-01", end_date="2026-12-31"), 2),
+        ("macro/reserve_ratio", lambda: rqdatac.econ.get_reserve_ratio(start_date="2014-01-01", end_date="2026-12-31"), 2),
+        ("macro/money_supply", lambda: rqdatac.econ.get_money_supply(start_date="2014-01-01", end_date="2026-12-31"), 2),
+        ("macro/interbank_offered_rate", lambda: rqdatac.get_interbank_offered_rate(start_date="2014-01-01", end_date="2026-12-31"), 2),
     ]
 
     # 另类 - 一致预期
     alt_apis = [
         ("alternative/consensus/comp_indicators",
-         lambda: rqdatac.consensus.get_comp_indicators(stock_ids[:200], "2020-01-01", "2026-12-31"), 20),
+         lambda: rqdatac.consensus.get_comp_indicators(stock_ids[:200], "2014-01-01", "2026-12-31"), 20),
         ("alternative/consensus/indicator",
          lambda: rqdatac.consensus.get_indicator(stock_ids[:200], "2024"), 10),
         ("alternative/consensus/industry_rating",
-         lambda: rqdatac.consensus.get_industry_rating(start_date="2020-01-01", end_date="2026-12-31"), 5),
+         lambda: rqdatac.consensus.get_industry_rating(start_date="2014-01-01", end_date="2026-12-31"), 5),
         ("alternative/news/stock_news",
-         lambda: rqdatac.news.get_stock_news(stock_ids[:100], "2024-01-01", "2026-04-23"), 10),
+         lambda: rqdatac.news.get_stock_news(stock_ids[:100], "2014-01-01", "2026-04-23"), 10),
         ("alternative/esg/rating",
-         lambda: rqdatac.esg.get_rating(stock_ids[:200], "2020-01-01", "2026-12-31"), 10),
+         lambda: rqdatac.esg.get_rating(stock_ids[:200], "2014-01-01", "2026-12-31"), 10),
     ]
 
     # 现货
     spot_apis = [
         ("spot/spot_benchmark_price",
-         lambda: rqdatac.get_spot_benchmark_price("AU9999.SGEX", "2020-01-01", "2026-12-31"), 2),
+         lambda: rqdatac.get_spot_benchmark_price("AU9999.SGEX", "2014-01-01", "2026-12-31"), 2),
     ]
 
     for key, func, need_mb in apis + alt_apis + spot_apis:
@@ -634,13 +760,14 @@ STEP_ORDER = [
 def main():
     step = sys.argv[1] if len(sys.argv) > 1 else "all"
 
-    print(f"RQData 全量下载工具 | 剩余流量: {remaining_quota_mb():.1f} MB")
+    info = get_quota_info()
+    print(f"RQData 全量下载工具 | 剩余流量: {info['remaining_mb']:.1f} MB")
     print(f"数据目录: {DATA_ROOT}")
 
     if step == "all":
         for s in STEP_ORDER:
-            if remaining_quota_mb() < QUOTA_MARGIN_MB + 50:
-                print(f"\n[停止] 流量不足 ({remaining_quota_mb():.1f} MB)，请明日继续")
+            if not check_quota(QUOTA_MARGIN_MB + 50):
+                print(f"\n[停止] 流量不足，请稍后继续")
                 break
             STEPS[s]()
     elif step in STEPS:
@@ -650,7 +777,7 @@ def main():
         print(f"可用步骤: {', '.join(STEP_ORDER)} | all")
         sys.exit(1)
 
-    print(f"\n完成! 剩余流量: {remaining_quota_mb():.1f} MB")
+    session_summary()
 
 
 if __name__ == "__main__":
