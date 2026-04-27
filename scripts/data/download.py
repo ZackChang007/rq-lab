@@ -229,9 +229,17 @@ def safe_download(key, func, path, need_mb=50, **to_parquet_kwargs):
                 df.to_parquet(str(path), **parquet_kwargs)
                 rows = len(df)
             else:
-                # 非DataFrame结果存为JSON
+                # 非DataFrame结果存为JSON（处理datetime等类型）
                 path = path.with_suffix(".json")
-                path.write_text(json.dumps(df, ensure_ascii=False, default=str), encoding="utf-8")
+                def serialize(obj):
+                    if isinstance(obj, (pd.Timestamp, datetime)):
+                        return obj.isoformat()
+                    if isinstance(obj, dict):
+                        return {str(k) if not isinstance(k, str) else k: serialize(v) for k, v in obj.items()}
+                    if isinstance(obj, (list, tuple)):
+                        return [serialize(i) for i in obj]
+                    return obj
+                path.write_text(json.dumps(serialize(df), ensure_ascii=False), encoding="utf-8")
                 rows = len(df) if hasattr(df, "__len__") else 1
             print(f"完成 ({rows} 行, 消耗 {actual_used:.2f} MB)")
             mark_done(key, rows=rows, bytes_est=int(actual_used * 1024 * 1024))
@@ -548,20 +556,53 @@ def download_index():
 # ── Step 7: 期货数据 ─────────────────────────────────────────────────────
 def download_futures():
     print("\n=== Step 7: 期货数据 ===")
-    future_types = ['IF', 'IH', 'IC', 'IM', 'TF', 'T', 'TS', 'TL', 'CU', 'AL', 'ZN', 'PB', 'NI', 'SN',
-                    'AU', 'AG', 'RB', 'HC', 'SS', 'I', 'J', 'JM', 'ZC', 'FG', 'SA', 'MA', 'TA', 'CF',
-                    'SR', 'OI', 'AP', 'CJ', 'CY', 'ER', 'WH', 'PM', 'RI', 'RS', 'JR', 'LR', 'A', 'B',
-                    'C', 'CS', 'JD', 'L', 'M', 'P', 'V', 'Y', 'PP', 'EG', 'EB', 'PG', 'FU', 'LU', 'SC',
-                    'NR', 'SI', 'LC', 'BR', 'AO', 'EC']
+    # 主要期货品种
+    future_types = ['IF', 'IH', 'IC', 'IM', 'TF', 'T', 'TS', 'TL', 'CU', 'AL', 'ZN', 'AU', 'AG',
+                    'RB', 'HC', 'I', 'J', 'MA', 'TA', 'CF', 'SR', 'OI', 'C', 'L', 'M', 'P', 'Y', 'PP']
 
+    # 主力合约 - 逐品种下载
+    all_dominant = []
+    for ft in future_types[:10]:  # 只下载主要品种
+        key = f"futures/dominant_{ft}"
+        if not is_done(key) and check_quota(5):
+            try:
+                info_before = get_quota_info()
+                before_mb = info_before["used_mb"]
+                print(f"  [下载] 主力合约 {ft} ...", end=" ", flush=True)
+                df = rqdatac.futures.get_dominant(ft, "2014-01-01", "2026-12-31")
+                actual_used = track_usage(before_mb)
+                if df is not None and not df.empty:
+                    all_dominant.append(df)
+                    print(f"完成 ({len(df)} 行, 消耗 {actual_used:.2f} MB)")
+                    mark_done(key, rows=len(df), bytes_est=int(actual_used * 1024 * 1024))
+                else:
+                    print(f"数据为空")
+                    mark_done(key, rows=0, bytes_est=0)
+            except Exception as e:
+                print(f"失败: {e}")
+                mark_failed(key, str(e))
+
+    if all_dominant:
+        merged = pd.concat(all_dominant)
+        out_path = DATA_ROOT / "futures/dominant.parquet"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        merged.to_parquet(str(out_path), engine="pyarrow", compression="snappy")
+        print(f"  [合并] 期货主力合约 -> {out_path} ({len(merged)} 行)")
+
+    # 获取合约列表后下载日线数据
+    safe_download(
+        "futures/contracts_IF",
+        lambda: rqdatac.futures.get_contracts("IF"),
+        DATA_ROOT / "futures/contracts_IF.parquet",
+        need_mb=1,
+    )
+
+    # 其他期货数据
     apis = [
-        ("futures/dominant", lambda: rqdatac.futures.get_dominant(future_types, "2014-01-01", "2026-12-31"), 20),
-        ("futures/contracts", lambda: rqdatac.futures.get_contracts(future_types[0]), 1),
-        ("futures/exchange_daily", lambda: rqdatac.futures.get_exchange_daily(future_types, "2014-01-01", "2026-12-31"), 50),
-        ("futures/member_rank", lambda: rqdatac.futures.get_member_rank(future_types[0], start_date="2014-01-01", end_date="2026-12-31"), 10),
-        ("futures/warehouse_stocks", lambda: rqdatac.futures.get_warehouse_stocks(future_types, "2014-01-01", "2026-12-31"), 10),
-        ("futures/basis", lambda: rqdatac.futures.get_basis(future_types, "2014-01-01", "2026-12-31"), 10),
-        ("futures/roll_yield", lambda: rqdatac.futures.get_roll_yield(future_types, "2014-01-01", "2026-12-31"), 10),
+        ("futures/member_rank", lambda: rqdatac.futures.get_member_rank("IF", start_date="2014-01-01", end_date="2026-12-31"), 10),
+        ("futures/warehouse_stocks", lambda: rqdatac.futures.get_warehouse_stocks(future_types[:5], "2014-01-01", "2026-12-31"), 10),
+        ("futures/basis", lambda: rqdatac.futures.get_basis(future_types[:5], "2014-01-01", "2026-12-31"), 10),
+        ("futures/roll_yield", lambda: rqdatac.futures.get_roll_yield(future_types[:5], "2014-01-01", "2026-12-31"), 10),
     ]
 
     for key, func, need_mb in apis:
