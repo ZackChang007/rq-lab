@@ -751,9 +751,9 @@ STEPS = {
 }
 
 STEP_ORDER = [
-    "metadata", "stock_price", "stock_finance", "stock_factor",
-    "stock_events", "index", "futures", "options",
-    "convertible", "fund", "risk_factor", "macro_alt_spot",
+    "metadata", "stock_price", "stock_finance", "stock_events",
+    "index", "futures", "options", "convertible",
+    "fund", "risk_factor", "macro_alt_spot", "stock_factor",  # 因子放最后
 ]
 
 
