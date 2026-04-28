@@ -572,6 +572,9 @@ def download_futures():
                 df = rqdatac.futures.get_dominant(ft, "2014-01-01", "2026-12-31")
                 actual_used = track_usage(before_mb)
                 if df is not None and not df.empty:
+                    # Series 转换为 DataFrame
+                    if isinstance(df, pd.Series):
+                        df = df.to_frame(name="dominant_contract")
                     all_dominant.append(df)
                     print(f"完成 ({len(df)} 行, 消耗 {actual_used:.2f} MB)")
                     mark_done(key, rows=len(df), bytes_est=int(actual_used * 1024 * 1024))
