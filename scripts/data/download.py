@@ -674,7 +674,7 @@ def download_fund():
 
     apis = [
         ("fund/all_instruments", lambda: rqdatac.fund.all_instruments(), 5),
-        ("fund/nav", lambda: rqdatac.fund.get_nav(fund_ids[:500], "2014-01-01", "2026-12-31") if fund_ids else pd.DataFrame(), 30),
+        ("fund/nav", lambda: rqdatac.fund.get_nav(fund_ids[:500], "2014-01-01", "2026-12-31", expect_df=True) if fund_ids else pd.DataFrame(), 30),
         ("fund/dividend", lambda: rqdatac.fund.get_dividend(fund_ids), 5),
         ("fund/split", lambda: rqdatac.fund.get_split(fund_ids), 2),
         ("fund/fee", lambda: rqdatac.fund.get_fee(fund_ids[:100]), 5),
@@ -685,7 +685,7 @@ def download_fund():
         ("fund/instrument_category", lambda: rqdatac.fund.get_instrument_category(fund_ids[:200]), 5),
         ("fund/category_mapping", lambda: rqdatac.fund.get_category_mapping(), 1),
         ("fund/manager", lambda: rqdatac.fund.get_manager(fund_ids[:200]), 5),
-        ("fund/transition_info", lambda: rqdatac.fund.get_transition_info(fund_ids), 5),
+        ("fund/transition_info", lambda: rqdatac.fund.get_transition_info(fund_ids[:200]) if fund_ids else pd.DataFrame(), 5),
     ]
 
     for key, func, need_mb in apis:
