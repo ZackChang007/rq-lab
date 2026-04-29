@@ -28,7 +28,7 @@ setup_license()
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
 LOG_PATH = DATA_ROOT / "download_log.json"
 DAILY_QUOTA_MB = 1024
-QUOTA_MARGIN_MB = 100  # 保留余量
+QUOTA_MARGIN_MB = 10  # 保留余量（已调低以充分利用配额）
 PYTHON = sys.executable
 
 # 启动时初始化连接
