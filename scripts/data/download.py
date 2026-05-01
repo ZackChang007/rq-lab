@@ -420,8 +420,13 @@ def download_stock_finance():
 
 
 # ── Step 4: A 股因子 ─────────────────────────────────────────────────────
-def download_stock_factor():
-    print("\n=== Step 4: A 股因子数据 ===")
+def download_stock_factor(time_dim: str = "lyr"):
+    """下载财务因子数据
+
+    Args:
+        time_dim: 时间维度 - lyr(年报), mrq(季报), ttm(滚动)
+    """
+    print(f"\n=== Step 4: A 股财务因子数据 ({time_dim.upper()}) ===")
     cs = rqdatac.all_instruments(type="CS")
     stock_ids = cs["order_book_id"].tolist()
 
@@ -436,17 +441,25 @@ def download_stock_factor():
         (DATA_ROOT / "stock" / "factor_names.json").write_text(
             json.dumps(all_factors, ensure_ascii=False), encoding="utf-8"
         )
-        print(f"  因子总数: {len(all_factors)}")
 
-    # 策略：单因子最近10年数据
-    factor_list = all_factors if all_factors else []
+    # 从因子列表提取359个基础财务指标（有 _lyr_ 后缀的）
+    fin_factors = [f for f in all_factors if "_lyr_" in f] if all_factors else []
+    base_factors = sorted(set(f.rsplit("_", 2)[0] for f in fin_factors))
+    print(f"  基础财务指标数量: {len(base_factors)}")
 
+    # 下载指定时间维度的因子
+    factor_list = [f + f"_{time_dim}_0" for f in base_factors]
+    start_date = "2020-01-01"
+    end_date = datetime.now().strftime("%Y-%m-%d")
+
+    downloaded = 0
     for i, factor_name in enumerate(factor_list):
         key = f"factor/{factor_name}"
         if is_done(key):
             print(f"  [跳过] {factor_name} 已下载")
             continue
-        if not check_quota(20):  # 单因子预估 10-20 MB
+        if not check_quota(5):  # 单因子预估 2-5 MB
+            print(f"  [停止] 流量不足，已下载 {downloaded} 个因子")
             return
 
         try:
@@ -455,7 +468,7 @@ def download_stock_factor():
             before_mb = info_before["used_mb"]
 
             print(f"  [下载] {i+1}/{len(factor_list)} {factor_name} ...", end=" ", flush=True)
-            df = rqdatac.get_factor(stock_ids, factor_name, "2016-01-01", "2026-12-31", expect_df=True)
+            df = rqdatac.get_factor(stock_ids, factor_name, start_date, end_date, expect_df=True)
 
             # 计算实际消耗
             actual_used = track_usage(before_mb)
@@ -467,6 +480,7 @@ def download_stock_factor():
                 rows = len(df)
                 print(f"完成 ({rows} 行, 消耗 {actual_used:.2f} MB)")
                 mark_done(key, rows=rows, bytes_est=int(actual_used * 1024 * 1024))
+                downloaded += 1
             else:
                 print(f"数据为空 (消耗 {actual_used:.2f} MB)")
                 mark_done(key, rows=0, bytes_est=int(actual_used * 1024 * 1024))
@@ -478,7 +492,83 @@ def download_stock_factor():
                 return
             print(f"失败: {e}")
             mark_failed(key, err_msg)
-            mark_failed(key, str(e))
+
+    print(f"  [完成] {time_dim.upper()} 因子下载完成，共下载 {downloaded} 个")
+
+
+def download_stock_factor_mrq():
+    """下载季报因子 (_mrq_0)"""
+    download_stock_factor("mrq")
+
+
+def download_stock_factor_ttm():
+    """下载滚动因子 (_ttm_0)"""
+    download_stock_factor("ttm")
+
+
+def download_technical_factors():
+    """下载技术因子数据（非财务因子）"""
+    print("\n=== Step 4B: 技术因子数据 ===")
+    cs = rqdatac.all_instruments(type="CS")
+    stock_ids = cs["order_book_id"].tolist()
+
+    # 获取所有因子名
+    try:
+        all_factors = rqdatac.get_all_factor_names()
+    except Exception:
+        all_factors = None
+
+    if not all_factors:
+        print("  无法获取因子列表")
+        return
+
+    # 过滤出技术因子（不包含 _lyr_, _mrq_, _ttm_ 后缀的）
+    tech_factors = [f for f in all_factors if not any(x in f for x in ['_lyr_', '_mrq_', '_ttm_'])]
+    print(f"  技术因子数量: {len(tech_factors)}")
+
+    start_date = "2020-01-01"
+    end_date = datetime.now().strftime("%Y-%m-%d")
+
+    downloaded = 0
+    for i, factor_name in enumerate(tech_factors):
+        key = f"factor/{factor_name}"
+        if is_done(key):
+            print(f"  [跳过] {factor_name} 已下载")
+            continue
+        if not check_quota(5):
+            print(f"  [停止] 流量不足，已下载 {downloaded} 个因子")
+            return
+
+        try:
+            info_before = get_quota_info()
+            before_mb = info_before["used_mb"]
+
+            print(f"  [下载] {i+1}/{len(tech_factors)} {factor_name} ...", end=" ", flush=True)
+            df = rqdatac.get_factor(stock_ids, factor_name, start_date, end_date, expect_df=True)
+
+            actual_used = track_usage(before_mb)
+
+            if df is not None and not df.empty:
+                out_path = DATA_ROOT / f"factor/{factor_name}.parquet"
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                df.to_parquet(str(out_path), engine="pyarrow", compression="snappy")
+                rows = len(df)
+                print(f"完成 ({rows} 行, 消耗 {actual_used:.2f} MB)")
+                mark_done(key, rows=rows, bytes_est=int(actual_used * 1024 * 1024))
+                downloaded += 1
+            else:
+                print(f"数据为空 (消耗 {actual_used:.2f} MB)")
+                mark_done(key, rows=0, bytes_est=int(actual_used * 1024 * 1024))
+        except Exception as e:
+            err_msg = str(e)
+            if "Quota exceeded" in err_msg:
+                print(f"流量超限")
+                mark_failed(key, "Quota exceeded")
+                return
+            print(f"失败: {e}")
+            mark_failed(key, err_msg)
+
+    print(f"  [完成] 技术因子下载完成，共下载 {downloaded} 个")
 
 
 # ── Step 5: A 股公司事件 ─────────────────────────────────────────────────
@@ -784,6 +874,9 @@ STEPS = {
     "stock_price": download_stock_price,
     "stock_finance": download_stock_finance,
     "stock_factor": download_stock_factor,
+    "stock_factor_mrq": download_stock_factor_mrq,
+    "stock_factor_ttm": download_stock_factor_ttm,
+    "technical_factors": download_technical_factors,
     "stock_events": download_stock_events,
     "index": download_index,
     "futures": download_futures,
@@ -797,7 +890,9 @@ STEPS = {
 STEP_ORDER = [
     "metadata", "stock_price", "stock_finance", "stock_events",
     "index", "futures", "options", "convertible",
-    "fund", "risk_factor", "macro_alt_spot", "stock_factor",  # 因子放最后
+    "fund", "risk_factor", "macro_alt_spot", "stock_factor",
+    "stock_factor_mrq", "stock_factor_ttm",  # 季报和滚动因子
+    "technical_factors",  # 技术因子（2700+个，用完剩余配额）
 ]
 
 
