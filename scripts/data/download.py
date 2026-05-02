@@ -506,6 +506,73 @@ def download_stock_factor_ttm():
     download_stock_factor("ttm")
 
 
+def download_valuation_factors():
+    """下载估值因子数据（pe/pb/ps/pcf_ratio 等）
+
+    估值因子是脚本实际依赖的数据，优先级最高。
+    包括：pe_ratio, pb_ratio, ps_ratio, pcf_ratio 及其 ttm/lyr/lf 变体
+    """
+    print("\n=== Step 4C: 估值因子数据 ===")
+    cs = rqdatac.all_instruments(type="CS")
+    stock_ids = cs["order_book_id"].tolist()
+
+    # 估值因子列表（从 factor_names.json 提取）
+    valuation_factors = [
+        "pe_ratio", "pe_ratio_1", "pe_ratio_2",
+        "pe_ratio_lyr", "pe_ratio_ttm",
+        "pb_ratio", "pb_ratio_1_lf", "pb_ratio_1_lyr", "pb_ratio_1_ttm",
+        "pb_ratio_lf", "pb_ratio_lyr", "pb_ratio_ttm",
+        "pcf_ratio", "pcf_ratio_1", "pcf_ratio_2", "pcf_ratio_3",
+        "pcf_ratio_lyr", "pcf_ratio_ttm",
+        "pcf_ratio_total_lyr", "pcf_ratio_total_ttm",
+        "ps_ratio", "ps_ratio_lyr", "ps_ratio_ttm",
+    ]
+
+    start_date = "2020-01-01"
+    end_date = datetime.now().strftime("%Y-%m-%d")
+
+    downloaded = 0
+    for i, factor_name in enumerate(valuation_factors):
+        key = f"factor/{factor_name}"
+        if is_done(key):
+            print(f"  [跳过] {factor_name} 已下载")
+            continue
+        if not check_quota(5):  # 单因子预估 2-5 MB
+            print(f"  [停止] 流量不足，已下载 {downloaded} 个因子")
+            return
+
+        try:
+            info_before = get_quota_info()
+            before_mb = info_before["used_mb"]
+
+            print(f"  [下载] {i+1}/{len(valuation_factors)} {factor_name} ...", end=" ", flush=True)
+            df = rqdatac.get_factor(stock_ids, factor_name, start_date, end_date, expect_df=True)
+
+            actual_used = track_usage(before_mb)
+
+            if df is not None and not df.empty:
+                out_path = DATA_ROOT / f"factor/{factor_name}.parquet"
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                df.to_parquet(str(out_path), engine="pyarrow", compression="snappy")
+                rows = len(df)
+                print(f"完成 ({rows} 行, 消耗 {actual_used:.2f} MB)")
+                mark_done(key, rows=rows, bytes_est=int(actual_used * 1024 * 1024))
+                downloaded += 1
+            else:
+                print(f"数据为空 (消耗 {actual_used:.2f} MB)")
+                mark_done(key, rows=0, bytes_est=int(actual_used * 1024 * 1024))
+        except Exception as e:
+            err_msg = str(e)
+            if "Quota exceeded" in err_msg:
+                print(f"流量超限")
+                mark_failed(key, "Quota exceeded")
+                return
+            print(f"失败: {e}")
+            mark_failed(key, err_msg)
+
+    print(f"  [完成] 估值因子下载完成，共下载 {downloaded} 个")
+
+
 def download_technical_factors():
     """下载技术因子数据（非财务因子）"""
     print("\n=== Step 4B: 技术因子数据 ===")
@@ -876,6 +943,7 @@ STEPS = {
     "stock_factor": download_stock_factor,
     "stock_factor_mrq": download_stock_factor_mrq,
     "stock_factor_ttm": download_stock_factor_ttm,
+    "valuation_factors": download_valuation_factors,
     "technical_factors": download_technical_factors,
     "stock_events": download_stock_events,
     "index": download_index,
@@ -892,6 +960,7 @@ STEP_ORDER = [
     "index", "futures", "options", "convertible",
     "fund", "risk_factor", "macro_alt_spot", "stock_factor",
     "stock_factor_mrq", "stock_factor_ttm",  # 季报和滚动因子
+    "valuation_factors",  # 估值因子（脚本依赖，优先下载）
     "technical_factors",  # 技术因子（2700+个，用完剩余配额）
 ]
 
