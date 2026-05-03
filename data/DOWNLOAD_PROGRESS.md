@@ -1,10 +1,10 @@
 # RiceQuant 数据下载进度
 
-> 更新时间: 2026-05-02
+> 更新时间: 2026-05-03
 
 ## 下载状态：✅ 今日配额已用完
 
-**流量使用**: 已用 1049.6 / 1024.0 MB（超限 25.6 MB）
+**流量使用**: 已用 1050.9 / 1024.0 MB（超限 26.9 MB）
 
 ---
 
@@ -29,7 +29,7 @@
 | 股本/换手率 | `stock/shares.parquet`, `stock/turnover_rate.parquet` | 598,839 | - |
 | 停牌/ST | `stock/suspended.parquet`, `stock/st_stock.parquet` | 116 | - |
 | 融资融券 | `stock/securities_margin.parquet` | 198,986 | - |
-| 资金流向 | `stock/capital_flow.parquet` | 6,660,488 | 2020-至今 ✅ 2026-05-02 |
+| 资金流向 | `stock/capital_flow.parquet` | 7,240,680 | 2020-至今 ✅ 2026-05-03 补全 |
 | 行业分类 | `stock/instrument_industry.parquet` | 5,207 | - |
 | 概念股 | `stock/concept_*.parquet` | 255 | - |
 
@@ -40,9 +40,9 @@
 | 季报因子（MRQ） | 359 | `factor/*_mrq_0.parquet` | 最新季报值，2020-至今 |
 | 滚动因子（TTM） | 359 | `factor/*_ttm_0.parquet` | 滚动12月值，2020-至今 |
 | 估值因子 | 23 | `factor/pe_*.parquet`, `factor/pb_*.parquet`, `factor/ps_*.parquet`, `factor/pcf_*.parquet` | PE/PB/PS/PCF 及其 ttm/lyr 变体，2020-至今 ✅ 2026-05-02 下载完成 |
-| 技术因子 | 29 | `factor/*.parquet` | ACCER, ADTM, ADX, ADXR, AMP系列, AMV系列, AR, AROON, ASI, ATR, BBI, BBIBOLL, BIAS等 |
+| 技术因子 | 48 | `factor/*.parquet` | ACCER, ADTM, ADX, ADXR, AMP系列, AMV系列, AR, AROON, ASI, ATR, BBI, BBIBOLL, BIAS等 + MA/MACD/RSI/KDJ/BOLL/CCI/VOL ✅ 2026-05-03 |
 
-**因子总计**: 1129 个 Parquet 文件（三时间维度完整 + 估值因子 + 部分技术因子）
+**因子总计**: 1148 个 Parquet 文件（三时间维度完整 + 估值因子 + 常用技术因子）
 
 ### 指数数据（完整）
 | 类别 | 文件 | 行数 |
@@ -129,20 +129,20 @@
 
 ## 文件统计
 
-**总文件数**: 1129 个因子 Parquet 文件 + 其他数据文件
-**总存储大小**: ~5.2 GB
+**总文件数**: 1148 个因子 Parquet 文件 + 其他数据文件
+**总存储大小**: ~5.8 GB
 
 ---
 
 ## 备注
 
-1. **财务因子数据（完整）**: 
+1. **财务因子数据（完整）**:
    - LYR（年报）: 359 个完整
    - MRQ（季报）: 359 个完整
    - TTM（滚动）: 359 个完整 ✅ 2026-05-01 下载完成
 2. **估值因子**: 23 个完整 ✅ 2026-05-02 下载完成（脚本依赖数据）
-3. **资金流向**: 6.66M 行 ✅ 2026-05-02 下载完成（部分股票因配额限制未完成）
-4. **技术因子**: 已下载 29 个，剩余 ~2095 个待下载
+3. **资金流向**: 7.24M 行 ✅ 2026-05-03 补全完成（5413只股票）
+4. **技术因子**: 已下载 48 个常用因子（MA/MACD/RSI/KDJ/BOLL/CCI/VOL等），剩余 ~2070 个非常用因子
 5. 期权希腊值数据在试用账号下不可用
 6. 新闻、ESG、行业资金流向等模块需要更高级别权限
-7. **明日计划**: 继续下载常用技术因子（MA/MACD/RSI等）或补全资金流向
+7. **明日计划**: 继续下载 VOL10/20/60 或其他技术因子
