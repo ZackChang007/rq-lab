@@ -1,10 +1,11 @@
 # RiceQuant 数据下载进度
 
-> 更新时间: 2026-05-03
+> 更新时间: 2026-05-07 11:53
 
-## 下载状态：✅ 今日配额已用完
+## 下载状态：⚠️ 配额已用完
 
-**流量使用**: 已用 1050.9 / 1024.0 MB（超限 26.9 MB）
+**流量使用**: 已超限（配额 1024 MB）
+**重置时间**: 每日午夜 00:00 Beijing Time
 
 ---
 
@@ -32,6 +33,12 @@
 | 资金流向 | `stock/capital_flow.parquet` | 7,240,680 | 2020-至今 ✅ 2026-05-03 补全 |
 | 行业分类 | `stock/instrument_industry.parquet` | 5,207 | - |
 | 概念股 | `stock/concept_*.parquet` | 255 | - |
+| 大宗交易 | `stock/block_trade.parquet` | 177,718 | ✅ 2026-05-07 新增 |
+| 龙虎榜 | `stock/leader_shares_change.parquet` | 82,819 | ✅ 2026-05-07 新增 |
+| 定向增发 | `stock/private_placement.parquet` | 3,915 | ✅ 2026-05-07 新增 |
+| 限售股解禁 | `stock/restricted_shares.parquet` | 4,446,571 | ✅ 2026-05-07 新增 |
+| 沪深通持股明细 | `stock/stock_connect_holding_details.parquet` | 56,542,831 | ✅ 2026-05-07 新增 |
+| 股东户数 | `stock/holder_number.parquet` | 400,953 | ✅ 2026-05-07 新增 |
 
 ### 因子数据（三时间维度 - 完整）
 | 类别 | 数量 | 文件 | 说明 |
@@ -42,7 +49,7 @@
 | 估值因子 | 23 | `factor/pe_*.parquet`, `factor/pb_*.parquet`, `factor/ps_*.parquet`, `factor/pcf_*.parquet` | PE/PB/PS/PCF 及其 ttm/lyr 变体，2020-至今 ✅ 2026-05-02 下载完成 |
 | 技术因子 | 48 | `factor/*.parquet` | ACCER, ADTM, ADX, ADXR, AMP系列, AMV系列, AR, AROON, ASI, ATR, BBI, BBIBOLL, BIAS等 + MA/MACD/RSI/KDJ/BOLL/CCI/VOL ✅ 2026-05-03 |
 
-**因子总计**: 1148 个 Parquet 文件（三时间维度完整 + 估值因子 + 常用技术因子）
+**因子总计**: 1341 个 Parquet 文件（三时间维度完整 + 估值因子 + 常用技术因子 + 财务细分因子部分）
 
 ### 指数数据（完整）
 | 类别 | 文件 | 行数 |
@@ -98,12 +105,15 @@
 | 行业评级（20行业） | `alternative/consensus/industry_rating.parquet` | 212,136 |
 | 行业评级（全部） | `alternative/consensus/industry_rating_all.parquet` | 601,658 |
 
-### 宏观数据
+### 宏观数据（完整）
 | 类别 | 文件 | 行数 |
 |------|------|------|
 | 准备金率 | `macro/reserve_ratio.parquet` | 44 |
 | 货币供应 | `macro/money_supply.parquet` | 363 |
 | 同业拆借利率 | `macro/interbank_offered_rate.parquet` | 3,073 |
+| 宏观因子（3901种） | `macro/factors/all_factors.parquet` | 823,432 | ✅ 2026-05-07 |
+
+**宏观因子类别**：GDP、CPI、PPI、PMI、社会融资规模、政府债务、房地产开发投资等
 
 ### ETF/LOF数据
 | 类别 | 文件 | 行数 |
@@ -142,7 +152,9 @@
    - TTM（滚动）: 359 个完整 ✅ 2026-05-01 下载完成
 2. **估值因子**: 23 个完整 ✅ 2026-05-02 下载完成（脚本依赖数据）
 3. **资金流向**: 7.24M 行 ✅ 2026-05-03 补全完成（5413只股票）
-4. **技术因子**: 已下载 48 个常用因子（MA/MACD/RSI/KDJ/BOLL/CCI/VOL等），剩余 ~2070 个非常用因子
-5. 期权希腊值数据在试用账号下不可用
-6. 新闻、ESG、行业资金流向等模块需要更高级别权限
-7. **明日计划**: 继续下载 VOL10/20/60 或其他技术因子
+4. **宏观因子**: 3901 种因子，823K 行 ✅ 2026-05-07 下载完成
+5. **股票扩展数据**: 大宗交易/龙虎榜/定向增发/限售股解禁/沪深通持股明细 ✅ 2026-05-07 下载完成
+6. **财务细分因子**: 已下载 193 个，剩余 ~2200 个待下载
+7. **技术因子**: 已下载 48 个常用因子，剩余 ~2070 个非常用因子
+8. 期权希腊值数据在试用账号下不可用
+9. 新闻、ESG、行业资金流向等模块需要更高级别权限
