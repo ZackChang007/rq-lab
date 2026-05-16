@@ -449,7 +449,7 @@ def download_stock_factor(time_dim: str = "lyr"):
 
     # 下载指定时间维度的因子
     factor_list = [f + f"_{time_dim}_0" for f in base_factors]
-    start_date = "2020-01-01"
+    start_date = "2010-01-01"
     end_date = datetime.now().strftime("%Y-%m-%d")
 
     downloaded = 0
@@ -528,7 +528,7 @@ def download_valuation_factors():
         "ps_ratio", "ps_ratio_lyr", "ps_ratio_ttm",
     ]
 
-    start_date = "2020-01-01"
+    start_date = "2010-01-01"
     end_date = datetime.now().strftime("%Y-%m-%d")
 
     downloaded = 0
@@ -593,7 +593,7 @@ def download_technical_factors():
     tech_factors = [f for f in all_factors if not any(x in f for x in ['_lyr_', '_mrq_', '_ttm_'])]
     print(f"  技术因子数量: {len(tech_factors)}")
 
-    start_date = "2020-01-01"
+    start_date = "2010-01-01"
     end_date = datetime.now().strftime("%Y-%m-%d")
 
     downloaded = 0
