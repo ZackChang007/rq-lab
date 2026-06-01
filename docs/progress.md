@@ -6,7 +6,7 @@
 ## 流量配额
 
 - 每日限额: 1024 MB
-- 当前剩余: ~4 MB（2026-05-29 MRQ膨胀因子mrq_5~8部分下载后）
+- 当前剩余: ~630 MB（2026-06-01 所有膨胀因子下载完成后）
 - 重置时间: 每日午夜 00:00
 
 ---
@@ -247,6 +247,7 @@ start_date = "2020-01-01"  # 需要改为 "2010-01-01"
 | 2026-05-28 | 完成mrq_2批次100%(359/359)，mrq_3批次47.4%(170/359)，消耗550.1MB，剩余49.7MB |
 | 2026-05-29 | 完成mrq_3、mrq_4批次；mrq_5~8部分下载；消耗~47MB，剩余~4MB；总体进度91.0% |
 | 2026-05-29 | 流量用尽(-0.4MB)，仅下载1个mrq_5因子；mrq_5进度164/359；总体进度91.0% |
+| 2026-06-01 | 完成所有膨胀因子下载：LYR(2872/2872)✅、MRQ(3949/3949)✅、TTM(2872/2872)✅、TTM1(1360/1360)✅；总体进度100% |
 
 ---
 
@@ -929,13 +930,7 @@ python scripts/data/download_expansion_factors.py --suffix ttm_1  # 继续下一
 
 ---
 
-**总体进度**: 9,046/9,946 (91.0%)
-**剩余配额**: ~4 MB（需等待午夜重置）
+**总体进度**: 11,053/11,053 (100%) ✅
+**剩余配额**: ~630 MB
 
-**明日继续执行命令**:
-```bash
-python scripts/data/download_expansion_factors.py --suffix mrq_5  # 完成 _mrq_5 剩余 236 个
-python scripts/data/download_expansion_factors.py --suffix mrq_6  # 继续下一批次
-# ... 依次完成 mrq_7 ~ mrq_9
-python scripts/data/download_expansion_factors.py --suffix ttm1_1  # 继续TTM1因子
-```
+**膨胀因子下载已全部完成！**
