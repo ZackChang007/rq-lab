@@ -17,6 +17,7 @@ __pycache__/
 # 下载的数据文件（太大不入库）
 /data/
 !/data/DOWNLOAD_PROGRESS.md
+!/data/DATA_INTEGRITY_REPORT.md
 
 # Playwright
 .playwright-mcp/
