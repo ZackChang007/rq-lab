@@ -71,7 +71,9 @@ def main():
     log("=" * 80)
 
     start_date = "2026-04-30"
-    end_date = "2026-06-12"
+    # 自动获取最新交易日
+    latest_trading_date = rqdatac.get_trading_dates('2026-06-01', '2026-06-20')[-1]
+    end_date = str(latest_trading_date)
 
     log(f"更新时间范围: {start_date} ~ {end_date}")
 
